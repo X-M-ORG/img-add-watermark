@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title>自适应水印添加</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+  <body>
+    <h2>说明</h2>
+    <div>
+      <p>这是一个纯静态的页面，可以给图片添加水印，水印会自动根据文本长度进行调整</p>
+      <p>点击添加水印后，将出现预览图，手机上可长按保存，电脑上可点击下载</p>
+    </div>
+    <h2>文件及水印</h2>
+    <div>
+      <span>选择文件(可多选)</span>
+      <input id="files" type="file" multiple />
+    </div>
+    <div style="margin: 20px 0">
+      <span>输入水印</span>
+      <input id="watermark" value="仅用于****使用" />
+    </div>
+    <div>
+      <button id="submit">添加水印</button>
+    </div>
+
+    <div id="preview"></div>
+
+    <script>
+      ;(function () {
+        const app = {
+          el: {
+            files: document.getElementById('files'),
+            submit: document.getElementById('submit'),
+            download: document.getElementById('download'),
+            preview: document.getElementById('preview'),
+
+            watermark: document.getElementById('watermark')
+          },
+
+          data: {
+            isMobile: /mobile/i.test(navigator.userAgent)
+          },
+
+          methods: {
+            /**
+             * 事件绑定
+             */
+            bindEvent() {
+              app.el.submit.addEventListener('click', async function () {
+                const files = await Promise.all([...app.el.files.files].map(app.methods.loadFile))
+                const imgs = files.map(app.methods.addWatermark)
+
+                const content = app.data.isMobile
+                  ? imgs
+                  : imgs.map((img) => {
+                      const a = document.createElement('a')
+                      a.download = img._name
+                      a.href = img.src
+                      a.appendChild(img)
+                      return a
+                    })
+
+                app.el.preview.innerHTML = ''
+                content.forEach((el) => {
+                  app.el.preview.appendChild(el)
+                })
+              })
+            },
+
+            /**
+             * 辅助方法
+             */
+            loadFile(file) {
+              return new Promise((resolve) => {
+                const img = new Image()
+                const reader = new FileReader()
+                reader.onload = () => {
+                  img._name = file.name
+                  img.src = reader.result
+                  resolve(img)
+                }
+                reader.readAsDataURL(file)
+              })
+            },
+            addWatermark(img) {
+              const text = app.el.watermark.value
+              const canvas = Object.assign(document.createElement('canvas'), { width: img.width, height: img.height })
+              const ctx = canvas.getContext('2d')
+              ctx.drawImage(img, 0, 0)
+
+              ctx.font = img.height / 18 + 'px serif'
+              ctx.fillStyle = 'rgba(100, 100, 100, 0.5)'
+
+              const oneW = ctx.measureText(text).width + img.width * 0.1
+              const oneH = img.height / 3
+
+              for (let x = -1; x <= img.width; x++) {
+                for (let y = -1; y <= img.height; y++) {
+                  ctx.setTransform(1, 0, 0, 1, 0, 0)
+                  ctx.rotate(-((20 * Math.PI) / 180))
+                  ctx.fillText(text, x * oneW, y * oneH)
+                }
+              }
+
+              img.src = canvas.toDataURL('image/jpeg', 1.0)
+              img.style.maxWidth = '100%'
+
+              return img
+            }
+          }
+        }
+
+        app.methods.bindEvent()
+      })()
+    </script>
+  </body>
+</html>
