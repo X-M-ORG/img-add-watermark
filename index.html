@@ -5,32 +5,65 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <title>自适应水印添加</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      * {
+        font-size: 14px;
+      }
+
+      h2 {
+        font-size: 18px;
+      }
+
+      img {
+        margin-bottom: 20px;
+      }
+
+      #loading {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        right: 0;
+        z-index: 100;
+        background-color: rgba(0, 0, 0, 0.8);
+        color: #fff;
+        justify-content: center;
+        align-items: center;
+        display: none;
+      }
+    </style>
   </head>
   <body>
+    <div id="loading">生成中，请稍等</div>
+
     <h2>说明</h2>
     <div>
       <p>这是一个纯静态的页面，可以给图片添加水印，水印会自动根据文本长度进行调整</p>
       <p>点击添加水印后，将出现预览图，手机上可长按保存，电脑上可点击下载</p>
+      <p>PS：手机上的图片一般很大，所以需要耐心等待一下</p>
     </div>
-    <h2>文件及水印</h2>
+    <h2>1. 选择文件</h2>
     <div>
-      <span>选择文件(可多选)</span>
       <input id="files" type="file" multiple />
     </div>
-    <div style="margin: 20px 0">
-      <span>输入水印</span>
+    <h2>2. 输入水印文案</h2>
+    <div>
       <input id="watermark" value="仅用于****使用" />
     </div>
+    <h2>3. 生成图片</h2>
     <div>
       <button id="submit">添加水印</button>
+      <button id="download">下载全部</button>
     </div>
-
+    <h2>4. 查看图片</h2>
     <div id="preview"></div>
 
     <script>
       ;(function () {
         const app = {
           el: {
+            loading: document.getElementById('loading'),
+
             files: document.getElementById('files'),
             submit: document.getElementById('submit'),
             download: document.getElementById('download'),
@@ -49,6 +82,12 @@
              */
             bindEvent() {
               app.el.submit.addEventListener('click', async function () {
+                if (!app.el.files.files.length) {
+                  return
+                }
+
+                app.el.loading.style.display = 'flex'
+
                 const files = await Promise.all([...app.el.files.files].map(app.methods.loadFile))
                 const imgs = files.map(app.methods.addWatermark)
 
@@ -64,7 +103,17 @@
 
                 app.el.preview.innerHTML = ''
                 content.forEach((el) => {
-                  app.el.preview.appendChild(el)
+                  const div = document.createElement('div')
+                  div.appendChild(el)
+                  app.el.preview.appendChild(div)
+                })
+
+                app.el.loading.style.display = 'none'
+              })
+
+              app.el.download.addEventListener('click', async function () {
+                Array.from(document.querySelectorAll('a')).forEach((el) => {
+                  el.dispatchEvent(new MouseEvent('click'))
                 })
               })
             },
@@ -104,7 +153,7 @@
                 }
               }
 
-              img.src = canvas.toDataURL('image/jpeg', 1.0)
+              img.src = canvas.toDataURL('image/jpeg', 0.9)
               img.style.maxWidth = '100%'
 
               return img
