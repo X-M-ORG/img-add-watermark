@@ -3,8 +3,9 @@
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta content="telephone=no" name="format-detection" />
     <title>自适应水印添加</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
       * {
         font-size: 14px;
@@ -36,13 +37,13 @@
   <body>
     <div id="loading">生成中，请稍等</div>
 
-    <h2>说明</h2>
+    <h2>2020.01.26 更新说明</h2>
     <div>
       <p>这是一个纯静态的页面，可以给图片添加水印，水印会自动根据文本长度进行调整</p>
       <p>点击添加水印后，将出现预览图，手机上可长按保存，电脑上可点击下载</p>
-      <p>PS：手机上的图片一般很大，所以需要耐心等待一下，建议使用电脑，手机可能会有兼容性问题</p>
+      <p>PS：手机上的图片一般很大，所以需要耐心等待一下</p>
     </div>
-    <h2>1. 选择文件</h2>
+    <h2>1. 选择文件(可多选)</h2>
     <div>
       <input id="files" type="file" multiple />
     </div>
@@ -87,21 +88,50 @@
                 }
 
                 app.el.loading.style.display = 'flex'
+                app.el.preview.innerHTML = ''
 
+                // 加载文件
                 const files = await Promise.all([...app.el.files.files].map(app.methods.loadFile))
-                const imgs = files.map(app.methods.addWatermark)
+
+                // 压缩 base64
+                const filesZip = await Promise.all(
+                  files.map(async function (item) {
+                    return {
+                      name: item.name,
+                      base64: await app.methods.zipBase64(item.base64)
+                    }
+                  })
+                )
+
+                // 加载img
+                const baseImgs = await Promise.all(
+                  filesZip.map(async function (item) {
+                    return {
+                      name: item.name,
+                      img: await app.methods.loadImg(item.base64)
+                    }
+                  })
+                )
+
+                // 添加水印
+                const watermarkImgs = await Promise.all(
+                  baseImgs.map(async function (item) {
+                    const img = await app.methods.addWatermark(item.img, app.el.watermark.value)
+                    img.style.maxWidth = '100%'
+                    return { name: item.name, img }
+                  })
+                )
 
                 const content = app.data.isMobile
-                  ? imgs
-                  : imgs.map((img) => {
+                  ? watermarkImgs.map((i) => i.img)
+                  : watermarkImgs.map((i) => {
                       const a = document.createElement('a')
-                      a.download = img._name
-                      a.href = img.src
-                      a.appendChild(img)
+                      a.download = i.name
+                      a.href = i.img.src
+                      a.appendChild(i.img)
                       return a
                     })
 
-                app.el.preview.innerHTML = ''
                 content.forEach((el) => {
                   const div = document.createElement('div')
                   div.appendChild(el)
@@ -119,22 +149,9 @@
             },
 
             /**
-             * 辅助方法
+             * 添加水印
              */
-            loadFile(file) {
-              return new Promise((resolve) => {
-                const img = new Image()
-                const reader = new FileReader()
-                reader.onload = () => {
-                  img._name = file.name
-                  img.src = reader.result
-                  resolve(img)
-                }
-                reader.readAsDataURL(file)
-              })
-            },
-            addWatermark(img) {
-              const text = app.el.watermark.value
+            addWatermark(img, text) {
               const canvas = Object.assign(document.createElement('canvas'), { width: img.width, height: img.height })
               const ctx = canvas.getContext('2d')
               ctx.drawImage(img, 0, 0)
@@ -155,11 +172,53 @@
                 }
               }
 
-              img.src = canvas.toDataURL('image/jpeg', 0.9)
-              img.style.maxWidth = '100%'
-              img.style.maxHeight = '1000px'
+              return app.methods.loadImg(canvas.toDataURL('image/jpeg', 1))
+            },
 
-              return img
+            /**
+             * 辅助方法
+             */
+            loadFile(file) {
+              return new Promise((resolve) => {
+                const reader = new FileReader()
+                reader.onload = () => resolve({ name: file.name, base64: reader.result })
+                reader.readAsDataURL(file)
+              })
+            },
+            loadImg(src) {
+              return new Promise((resolve) => {
+                const img = new Image()
+                img.onload = () => resolve(img)
+                img.src = src
+              })
+            },
+            zipBase64(base64) {
+              // todo 页面展示可选项
+              const maxHeight = 1000
+              const maxWidth = 1000
+              const quality = 0.7
+
+              return new Promise((resolve) => {
+                const img = new Image()
+                const canvas = document.createElement('canvas')
+
+                img.onload = () => {
+                  const ratio = img.naturalWidth / img.naturalHeight
+
+                  if (img.naturalWidth > img.naturalHeight) {
+                    canvas.width = img.naturalWidth > maxWidth ? maxWidth : img.naturalWidth
+                    canvas.height = canvas.width / ratio
+                  } else {
+                    canvas.height = img.naturalHeight > maxHeight ? maxHeight : img.naturalHeight
+                    canvas.width = canvas.height * ratio
+                  }
+
+                  canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+                  resolve(canvas.toDataURL('image/jpeg', quality))
+                }
+
+                img.src = base64
+              })
             }
           }
         }
